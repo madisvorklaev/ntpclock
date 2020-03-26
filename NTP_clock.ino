@@ -16,7 +16,7 @@ RTC_DS1307 RTC;
 LiquidCrystal_I2C lcd(0x3F,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-IPAddress ip(192, 168, 1, 187);
+IPAddress ip(192, 168, 2, 187);
 const char timeServer[] = "time.nist.gov"; // time.nist.gov NTP server
 
 unsigned int localPort = 8888;       // local port to listen for UDP packets
@@ -30,6 +30,7 @@ const long checkInterval = 1000;
 
 int seconds;
 int lastSecond;
+bool flag;
 
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
@@ -56,7 +57,7 @@ void setup() {
   Ethernet.init(10);  // Most Arduino shields
   //Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
-  //Serial.begin(9600);
+  Serial.begin(9600);
   
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     //Serial.println("Ethernet shield was not found.");
@@ -96,7 +97,36 @@ void setup() {
   //Serial.print(Ethernet.localIP());
   //Serial.println();
   Udp.begin(localPort);
+
+
+// initialize timer1 
+
+  noInterrupts();           // disable all interrupts
+
+  TCCR1A = 0;
+
+  TCCR1B = 0;
+
+  TCNT1  = 0;
+
+  OCR1A = 62500;            // compare match register 16MHz/256/1Hz (16000000Hz / 256val /1 = 62500)
+
+  TCCR1B |= (1 << WGM12);   // CTC mode
+
+  TCCR1B |= (1 << CS12);    // 256 prescaler 
+
+  TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
+
+  interrupts();             // enable all interrupts
+
 }
+
+ISR(TIMER1_COMPA_vect)          // timer compare interrupt service routine
+
+{
+flag = 1;
+}
+
 
 void loop() {
   unsigned long currentMillis = millis();
@@ -110,7 +140,7 @@ void loop() {
       // We've received a packet, read the data from it
       Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
   
-      // the timestamp starts at byte 40 of the received packet and is four bytes,
+      // the timestamp starts at byte 40 of the received packet and is four b ytes,
       // or two words, long. First, extract the two words:
   
       unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
@@ -130,11 +160,15 @@ void loop() {
       unsigned long epoch = secsSince1900 - seventyYears;
       // print Unix time:
       //Serial.println(epoch);
-     // checkEpoch(epoch);
-      RTC.adjust(DateTime(epoch));
+      //checkEpoch(epoch);
+      //RTC.adjust(DateTime(epoch));
+      lcd.setCursor(12,1);
+      lcd.print("OK");
   }}
 
-  printRTCtime();
+  if(flag == 1){
+    printRTCtime();
+    flag = 0; }
 /*
   DateTime now = RTC.now(); 
   seconds = now.second();
@@ -197,14 +231,6 @@ void sendNTPpacket(const char * address) {
   Udp.endPacket();
 }
 
-void printMsg(String message){
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("UTC time is:");
-  lcd.setCursor(0, 1);
-  lcd.print(message);
-}
-
 void printRTCtime(){
   DateTime now = RTC.now();
 
@@ -235,6 +261,8 @@ void printRTCtime(){
   print2digits(now.minute());
   lcd.print(':');
   print2digits(now.second());
+  lcd.setCursor(12, 1);
+  lcd.print("  ");
   
   /*
   lcd.print(now.hour(), DEC);
