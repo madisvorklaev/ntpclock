@@ -28,6 +28,9 @@ unsigned long previousCheckMillis = 0;
 const long sendInterval = 3600;
 const long checkInterval = 1000;
 
+int seconds;
+int lastSecond;
+
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 
@@ -47,7 +50,8 @@ void setup() {
   lcd.setCursor(1,1);
   lcd.print("Local IP address is: ");
   lcd.println(ip);
-  
+  delay(1000);
+  lcd.clear();
   // You can use Ethernet.init(pin) to configure the CS pin
   Ethernet.init(10);  // Most Arduino shields
   //Ethernet.init(5);   // MKR ETH shield
@@ -130,8 +134,13 @@ void loop() {
       RTC.adjust(DateTime(epoch));
   }}
 
-    Serial.println();
+  Serial.println();
+  DateTime now = RTC.now(); 
+  seconds = now.second();
+  if(seconds != lastSecond) {
     printRTCtime();
+    lastSecond = seconds;
+  }
     /*
     int hours = ((epoch  % 86400L) / 3600);
     int minutes = ((epoch  % 3600) / 60);
@@ -195,7 +204,7 @@ void printMsg(String message){
 }
 
 void printRTCtime(){
-  DateTime now = RTC.now(); 
+  DateTime now = RTC.now();
   Serial.print(now.year());
   Serial.print('/');
   Serial.print(now.month());
@@ -208,6 +217,17 @@ void printRTCtime(){
   Serial.print(':');
   Serial.print(now.second(), DEC);
   Serial.println(); 
+
+  //lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("UTC time is:");
+  lcd.setCursor(0, 1);
+  lcd.print(now.hour(), DEC);
+  lcd.print(':');
+  lcd.print(now.minute(), DEC);
+  lcd.print(':');
+  lcd.print(now.second(), DEC);
+  
 }
 
 
