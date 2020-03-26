@@ -1,18 +1,5 @@
 /*
-
- Udp NTP Client
-
- Get the time from a Network Time Protocol (NTP) time server
- Demonstrates use of UDP sendPacket and ReceivePacket
- For more on NTP time servers and the messages needed to communicate with them,
- see http://en.wikipedia.org/wiki/Network_Time_Protocol
-
- created 4 Sep 2010
- by Michael Margolis
- modified 9 Apr 2012
- by Tom Igoe
- modified 02 Sept 2015
- by Arturo Guadalupi
+Thanks to: Michael Margolis, Tom Igoe, Arturo Guadalupi
 
  This code is in the public domain.
 
@@ -24,22 +11,20 @@
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 #include "RTClib.h"
+
 RTC_DS1307 RTC;
 LiquidCrystal_I2C lcd(0x3F,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
-// Enter a MAC address for your controller below.
-// Newer Ethernet shields have a MAC address printed on a sticker on the shield
-byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
-};
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+IPAddress ip(192, 168, 2, 101);
+const char timeServer[] = "time.nist.gov"; // time.nist.gov NTP server
 
 unsigned int localPort = 8888;       // local port to listen for UDP packets
-const char timeServer[] = "time.nist.gov"; // time.nist.gov NTP server
 const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
 byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
 
 unsigned long previousMillis = 0;
-const long interval = 3600000;
+const long interval = 3600;
 
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
@@ -58,20 +43,30 @@ void setup() {
   lcd.setCursor(1,0);
   lcd.print("Ethernet initializing...");
   lcd.setCursor(1,1);
-  lcd.print("Getting IP from DHCP...");
+  lcd.print("Local IP address is: ");
+  lcd.println(ip);
   
   // You can use Ethernet.init(pin) to configure the CS pin
   Ethernet.init(10);  // Most Arduino shields
   //Ethernet.init(5);   // MKR ETH shield
-  //Ethernet.init(0);   // Teensy 2.0
-  //Ethernet.init(20);  // Teensy++ 2.0
-  //Ethernet.init(15);  // ESP8266 with Adafruit Featherwing Ethernet
-  //Ethernet.init(33);  // ESP32 with Adafruit Featherwing Ethernet
-
-  // Open serial communications and wait for port to open:
+  Ethernet.begin(mac, ip);
   Serial.begin(9600);
+  
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println("Ethernet shield was not found.");
+  }
+  else if (Ethernet.hardwareStatus() == EthernetW5100) {
+    Serial.println("W5100 Ethernet controller detected.");
+  }
+  else if (Ethernet.hardwareStatus() == EthernetW5200) {
+    Serial.println("W5200 Ethernet controller detected.");
+  }
+  else if (Ethernet.hardwareStatus() == EthernetW5500) {
+    Serial.println("W5500 Ethernet controller detected.");
+  }
+  
   // start Ethernet and UDP
-  if (Ethernet.begin(mac) == 0) {
+  /*if (Ethernet.begin(mac) == 0) {
     Serial.println("Failed to configure Ethernet using DHCP");
     lcd.clear();
     lcd.setCursor(1,0);
@@ -89,7 +84,9 @@ void setup() {
     while (true) {
       delay(1);
     }
+    
   }
+  */
   Serial.print(Ethernet.localIP());
   Serial.println();
   Udp.begin(localPort);
@@ -102,7 +99,7 @@ void loop() {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
 
   // wait to see if a reply is available
-  delay(300);
+  delay(100);
   if (Udp.parsePacket()) {
     // We've received a packet, read the data from it
     Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
