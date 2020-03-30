@@ -25,7 +25,8 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packe
 
 unsigned long previousSendMillis = 0;
 unsigned long previousCheckMillis = 0;
-const long sendInterval = 36000;
+//const long sendInterval = 900000;
+const long sendInterval = 10000;
 const long checkInterval = 1000;
 
 int seconds;
@@ -39,26 +40,32 @@ void setup() {
 
   Wire.begin();
   RTC.begin();
+  lcd.begin();
+  //lcd.backlight();
   if (! RTC.isrunning()) {
-    //Serial.println("RTC is NOT running!");
+    lcd.setCursor(0,0);
+    lcd.print("RTC is NOT running!");
+    while (true) {
+      delay(1);
+    }
   }
-
-  lcd.begin(); // initialize the lcd 
-  // Print a message to the LCD.
-  lcd.backlight();
-  lcd.setCursor(1,0);
-  lcd.print("Ethernet initializing...");
-  lcd.setCursor(1,1);
-  lcd.print("Local IP address is: ");
-  lcd.println(ip);
-  delay(1000);
-  lcd.clear();
-  // You can use Ethernet.init(pin) to configure the CS pin
-  Ethernet.init(10);  // Most Arduino shields
+  
+  Ethernet.init(10);  // CS pin
   //Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
+  Udp.begin(localPort);
+
   Serial.begin(9600);
-  
+
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("IP is: ");
+  lcd.setCursor(0,1);
+  lcd.print(ip);
+  delay(2000);
+  lcd.clear();
+
+  /*
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     //Serial.println("Ethernet shield was not found.");
   }
@@ -73,7 +80,7 @@ void setup() {
   }
   
   // start Ethernet and UDP
-  /*if (Ethernet.begin(mac) == 0) {
+  if (Ethernet.begin(mac) == 0) {
     //Serial.println("Failed to configure Ethernet using DHCP");
     lcd.clear();
     lcd.setCursor(1,0);
@@ -94,39 +101,22 @@ void setup() {
     
   }
   */
-  //Serial.print(Ethernet.localIP());
-  //Serial.println();
-  Udp.begin(localPort);
-
-
+  
 // initialize timer1 
-
   noInterrupts();           // disable all interrupts
-
   TCCR1A = 0;
-
   TCCR1B = 0;
-
   TCNT1  = 0;
-
-  OCR1A = 62500;            // compare match register 16MHz/256/1Hz (16000000Hz / 256val /1 = 62500)
-
+  OCR1A = 62500;            // compare match register 16MHz/256/1Hz (16000000Hz/256val/1Hz = 62500 = 1sek)
   TCCR1B |= (1 << WGM12);   // CTC mode
-
   TCCR1B |= (1 << CS12);    // 256 prescaler 
-
   TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
-
   interrupts();             // enable all interrupts
-
 }
 
-ISR(TIMER1_COMPA_vect)          // timer compare interrupt service routine
-
-{
-flag = 1;
+ISR(TIMER1_COMPA_vect){    // timer compare interrupt service routine
+  flag = 1;                // tick every second
 }
-
 
 void loop() {
   unsigned long currentMillis = millis();
@@ -139,73 +129,74 @@ void loop() {
     if (Udp.parsePacket()) {
       // We've received a packet, read the data from it
       Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
-  
+      Serial.print("packetBuffer: ");
+      Serial.println(word(packetBuffer, NTP_PACKET_SIZE));
       // the timestamp starts at byte 40 of the received packet and is four b ytes,
       // or two words, long. First, extract the two words:
   
       unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
       unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
+     
+      /*Serial.print("highWord: ");
+      Serial.println(highWord);
+      Serial.print("lowWord: ");
+      Serial.println(lowWord);
+*/
+
+      // https://forum.arduino.cc/index.php?topic=526792.0
+      // Combine the 4 timestamp bytes into one 32-bit number
+      uint32_t NTPTime = (packetBuffer[40] << 24) | (packetBuffer[41] << 16) | (packetBuffer[42] << 8) | packetBuffer[43];     
+      // Now get the fractional part
+      uint32_t NTPmillis = (packetBuffer[44] << 24) | (packetBuffer[45] << 16) | (packetBuffer[46] << 8) | packetBuffer[47];
+      int32_t fractionalPart = (int32_t)(((float)NTPmillis / UINT32_MAX) * 1000);
+   /*   Serial.print("NTPtime: ");
+      Serial.println(NTPTime);
+      Serial.print("NTPmillis: ");
+      Serial.println(NTPmillis);
+      Serial.print("Fractional: ");
+      Serial.println(fractionalPart);
+*/
+
+      
       // combine the four bytes (two words) into a long integer
       // this is NTP time (seconds since Jan 1 1900):
       unsigned long secsSince1900 = highWord << 16 | lowWord;
-      //Serial.print("Seconds since Jan 1 1900 = ");
-      //Serial.println(secsSince1900);
-     // printMsg(secsSince1900);
   
       // now convert NTP time into everyday time:
-      //Serial.print("Unix time = ");
       // Unix time starts on Jan 1 1970. In seconds, that's 2208988800:
       const unsigned long seventyYears = 2208988800UL;
       // subtract seventy years:
       unsigned long epoch = secsSince1900 - seventyYears;
-      // print Unix time:
-      //Serial.println(epoch);
-      //checkEpoch(epoch);
-      //RTC.adjust(DateTime(epoch));
-      lcd.setCursor(12,1);
-      lcd.print("OK");
+      RTC.adjust(DateTime(epoch));
   }}
 
   if(flag == 1){
     printRTCtime();
     flag = 0; }
-/*
-  DateTime now = RTC.now(); 
-  seconds = now.second();
-  if(seconds != lastSecond) {
-    printRTCtime();
-    lastSecond = seconds;
-  }
-  */
+
     /*
     int hours = ((epoch  % 86400L) / 3600);
     int minutes = ((epoch  % 3600) / 60);
     int seconds = (epoch % 60);
-    String tunnid = String(hours);
-    String minutid = String(minutes);
-    String sekundid = String(seconds);
-    String utcTime = (tunnid + ":" + minutid + ":" + sekundid);
-    printMsg(utcTime);
     // print the hour, minute and second:
-    //Serial.print("The UTC time is ");       // UTC is the time at Greenwich Meridian (GMT)
-    //Serial.print((epoch  % 86400L) / 3600); // print the hour (86400 equals secs per day)
-    //Serial.print(':');
+    Serial.print("The UTC time is ");       // UTC is the time at Greenwich Meridian (GMT)
+    Serial.print((epoch  % 86400L) / 3600); // print the hour (86400 equals secs per day)
+    Serial.print(':');
     if (((epoch % 3600) / 60) < 10) {
       // In the first 10 minutes of each hour, we'll want a leading '0'
-      //Serial.print('0');
+      Serial.print('0');
     }
-    //Serial.print((epoch  % 3600) / 60); // print the minute (3600 equals secs per minute)
-    //Serial.print(':');
+    Serial.print((epoch  % 3600) / 60); // print the minute (3600 equals secs per minute)
+    Serial.print(':');
     if ((epoch % 60) < 10) {
       // In the first 10 seconds of each minute, we'll want a leading '0'
-      //Serial.print('0');
+      Serial.print('0');
     }
-    //Serial.println(epoch % 60); // print the second
+    Serial.println(epoch % 60); // print the second
   }
-  */
-
   //delay(100);
-  //Ethernet.maintain();
+  //Ethernet.maintain(); //hold DHCP session
+  */
 }
 
 // send an NTP request to the time server at the given address
@@ -234,8 +225,14 @@ void sendNTPpacket(const char * address) {
 void printRTCtime(){
   DateTime now = RTC.now();
 
-;
-
+  lcd.setCursor(0, 1);
+  print2digits(now.hour());
+  lcd.print(':');
+  print2digits(now.minute());
+  lcd.print(':');
+  print2digits(now.second());
+  
+  //unsigned long unix = now.unixtime();
   //Serial.print(now.year());
   //Serial.print('/');
   //Serial.print(now.month());
@@ -249,21 +246,6 @@ void printRTCtime(){
   //Serial.print(now.second(), DEC);
   //Serial.println(); 
 
-
-  unsigned long unix = now.unixtime();
-
-  //lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print(unix);
-  lcd.setCursor(0, 1);
-  print2digits(now.hour());
-  lcd.print(':');
-  print2digits(now.minute());
-  lcd.print(':');
-  print2digits(now.second());
-  lcd.setCursor(12, 1);
-  lcd.print("  ");
-  
   /*
   lcd.print(now.hour(), DEC);
   lcd.print(':');
