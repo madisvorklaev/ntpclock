@@ -50,8 +50,6 @@ void setup() {
   Wire.write(0x10);  // Set Square Wave to 1 Hz
   Wire.endTransmission();  
   RTC.begin();
-//  RTC.writeSqwPinMode(DS1307_SquareWave1Hz);
-//  RTC.squareWave(SQWAVE_1_HZ);
   lcd.begin();
   //lcd.backlight();
   if (! RTC.isrunning()) {
@@ -79,7 +77,7 @@ void setup() {
 
   pinMode(ledPin, OUTPUT);
   pinMode(interruptPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(interruptPin), blink, FALLING);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), setFlag, FALLING);
 
   /*
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
@@ -196,8 +194,9 @@ void loop() {
       RTC.adjust(DateTime(epoch));
   }}
 
-  if(state = !state){
+  if(flag == 1){
     printRTCtime();
+    flag = 0;
    }
 
     /*
@@ -250,14 +249,14 @@ void sendNTPpacket(const char * address) {
 
 void printRTCtime(){
   DateTime now = RTC.now();
-  lcd.setCursor(0, 0);
-  lcd.print(millis() - previousSendMillis);
+ // lcd.setCursor(0, 0);
+ // lcd.print(millis() - previousSendMillis);
   lcd.setCursor(0, 1);
   print2digits(now.hour());
   lcd.print(':');
   print2digits(now.minute());
   lcd.print(':');
-  print2digits(now.second()+1);
+  print2digits(now.second());
   
   //unsigned long unix = now.unixtime();
   //Serial.print(now.year());
@@ -304,9 +303,7 @@ void checkEpoch(unsigned long ntpTime){
   lcd.println(" RTC");
 }
 
-void blink() {
-  state = !state;
-  Serial.println(state);
-  digitalWrite(ledPin, state);
-
+void setFlag() {
+  flag = 1;
+  digitalWrite(ledPin, !digitalRead(ledPin));
 }
