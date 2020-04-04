@@ -1,6 +1,6 @@
 /*
-Thanks to: Michael Margolis, Tom Igoe, Arturo Guadalupi, Phil at https://forum.arduino.cc/index.php?topic=526792.0
-This code is in the public domain.
+  Thanks to: Michael Margolis, Tom Igoe, Arturo Guadalupi, Phil at https://forum.arduino.cc/index.php?topic=526792.0
+  This code is in the public domain.
 */
 
 #include <SPI.h>
@@ -10,7 +10,7 @@ This code is in the public domain.
 #include <Wire.h>
 #include <RTClib.h>
 RTC_DS1307 RTC;
-LiquidCrystal_I2C lcd(0x3F,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x3F, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
 
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 IPAddress ip(192, 168, 2, 187);
@@ -24,12 +24,12 @@ const byte ledPin = 13;
 const byte interruptPin = 7;
 volatile byte flag = LOW;
 volatile byte startup = HIGH;
-const int counter = 0;
+uint8_t counter = 0;
 
 unsigned long previousSendMillis = 0;
 unsigned long previousCheckMillis = 0;
-const long sendInterval = 10000;
-const long checkInterval = 1000;
+const int sendInterval = 10;
+const int checkInterval = 1;
 
 int seconds;
 int lastSecond;
@@ -44,17 +44,17 @@ void setup() {
   Wire.beginTransmission(0x68);
   Wire.write(0x07);
   Wire.write(0x10);  // Set Square Wave to 1 Hz
-  Wire.endTransmission();  
+  Wire.endTransmission();
   RTC.begin();
   lcd.begin();
   if (! RTC.isrunning()) {
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("RTC is NOT running!");
     while (true) {
       delay(1);
     }
   }
-  
+
   Ethernet.init(10);  // CS pin
   //Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
@@ -63,9 +63,9 @@ void setup() {
   Serial.begin(9600);
 
   lcd.clear();
-  lcd.setCursor(0,0);
+  lcd.setCursor(0, 0);
   lcd.print("IP is: ");
-  lcd.setCursor(0,1);
+  lcd.setCursor(0, 1);
   lcd.print(ip);
   delay(2000);
   lcd.clear();
@@ -73,48 +73,43 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(interruptPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interruptPin), setFlag, FALLING);
-  }
-  
+}
+
 void loop() {
-  if(startup == HIGH) {
+  if (startup == HIGH) {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
     startup = LOW;
   }
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousSendMillis >= sendInterval) {
-    previousSendMillis = currentMillis;
+  if (counter >= sendInterval) {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
+    counter = 0;
   }
-  if (currentMillis - previousCheckMillis >= checkInterval) {
-    previousCheckMillis = currentMillis;  
-    if (Udp.parsePacket()) {
-      // We've received a packet, read the data from it
-      Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
-      Serial.print("packetBuffer: ");
-      Serial.println(word(packetBuffer, NTP_PACKET_SIZE));
-      // the timestamp starts at byte 40 of the received packet and is four b ytes,
-      // or two words, long. First, extract the two words:
-      unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
-      unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
-      // combine the four bytes (two words) into a long integer
-      // this is NTP time (seconds since Jan 1 1900):
-      unsigned long secsSince1900 = highWord << 16 | lowWord;
-      // now convert NTP time into everyday time:
-      // Unix time starts on Jan 1 1970. In seconds, that's 2208988800:
-      const unsigned long seventyYears = 2208988800UL;
-      // subtract seventy years:
-      unsigned long epoch = secsSince1900 - seventyYears;
-      RTC.adjust(DateTime(epoch));
-      Wire.beginTransmission(0x68);
-      Wire.write(0x07);
-      Wire.write(0x10);  // Set Square Wave to 1 Hz
-      Wire.endTransmission(); 
-  }}
+  if (Udp.parsePacket()) {
+    // We've received a packet, read the data from it
+    Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
+    // the timestamp starts at byte 40 of the received packet and is four b ytes,
+    // or two words, long. First, extract the two words:
+    unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
+    unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
+    // combine the four bytes (two words) into a long integer
+    // this is NTP time (seconds since Jan 1 1900):
+    unsigned long secsSince1900 = highWord << 16 | lowWord;
+    // now convert NTP time into everyday time:
+    // Unix time starts on Jan 1 1970. In seconds, that's 2208988800:
+    const unsigned long seventyYears = 2208988800UL;
+    // subtract seventy years:
+    unsigned long epoch = secsSince1900 - seventyYears;
+    RTC.adjust(DateTime(epoch));
+    Wire.beginTransmission(0x68);
+    Wire.write(0x07);
+    Wire.write(0x10);  // Set Square Wave to 1 Hz
+    Wire.endTransmission();
+  }
 
-  if(flag == HIGH){
+  if (flag) {
     printRTCtime();
     flag = LOW;
-   }
+  }
 }
 
 void sendNTPpacket(const char * address) { // send an NTP request to the time server at the given address
@@ -138,7 +133,7 @@ void sendNTPpacket(const char * address) { // send an NTP request to the time se
   Udp.endPacket();
 }
 
-void printRTCtime(){
+void printRTCtime() {
   DateTime now = RTC.now();
   lcd.setCursor(0, 1);
   print2digits(now.hour());
@@ -146,42 +141,18 @@ void printRTCtime(){
   print2digits(now.minute());
   lcd.print(':');
   print2digits(now.second());
-  
-  //unsigned long unix = now.unixtime();
-  //Serial.print(now.year());
-  //Serial.print('/');
-  //Serial.print(now.month());
-  //Serial.print('/');
-  //Serial.print(now.day());
-  //Serial.print(' ');
-  //Serial.print(now.hour(), DEC);
-  //Serial.print(':');
-  //Serial.print(now.minute(), DEC);
-  //Serial.print(':');
-  //Serial.print(now.second(), DEC);
-  //Serial.println(); 
 }
 
 void print2digits(int number) {
   if (number == 60) {
     lcd.print("00");
   }
-  else{
-  if (number >= 0 && number < 10) {
-    lcd.print('0');
+  else {
+    if (number >= 0 && number < 10) {
+      lcd.print('0');
+    }
+    lcd.print(number);
   }
-  lcd.print(number);
-}}
-
-void checkEpoch(unsigned long ntpTime){
-  DateTime now = RTC.now();
-  unsigned long rtcTime = now.unixtime();
-  lcd.setCursor(0, 0);
-  lcd.print(ntpTime);
-  lcd.println(" NTP");
-  lcd.setCursor(0, 1);
-  lcd.print(rtcTime);
-  lcd.println(" RTC");
 }
 
 void setFlag() {
