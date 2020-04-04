@@ -30,7 +30,7 @@ int kkk=0;
 
 unsigned long previousSendMillis = 0;
 unsigned long previousCheckMillis = 0;
-const long sendInterval = 900000;
+const long sendInterval = 10000;
 //const long sendInterval = 3000;
 const long checkInterval = 1000;
 
@@ -192,6 +192,10 @@ void loop() {
       // subtract seventy years:
       unsigned long epoch = secsSince1900 - seventyYears;
       RTC.adjust(DateTime(epoch));
+      Wire.beginTransmission(0x68);
+      Wire.write(0x07);
+      Wire.write(0x10);  // Set Square Wave to 1 Hz
+      Wire.endTransmission(); 
   }}
 
   if(flag == 1){
