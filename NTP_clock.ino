@@ -11,7 +11,7 @@ Thanks to: Michael Margolis, Tom Igoe, Arturo Guadalupi
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 #include <RTClib.h>
-
+asdasdasda
 RTC_DS1307 RTC;
 LiquidCrystal_I2C lcd(0x3F,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
