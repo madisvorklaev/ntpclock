@@ -60,8 +60,6 @@ void setup() {
   Ethernet.begin(mac, ip);
   Udp.begin(localPort);
 
-  Serial.begin(9600);
-
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("IP is: ");
@@ -76,14 +74,21 @@ void setup() {
 }
 
 void loop() {
+  if (flag == HIGH) {
+    printRTCtime();
+    flag = LOW;
+  } 
+  
   if (startup == HIGH) {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
     startup = LOW;
   }
+
   if (counter >= sendInterval) {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
     counter = 0;
   }
+
   if (Udp.parsePacket()) {
     // We've received a packet, read the data from it
     Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
@@ -104,11 +109,6 @@ void loop() {
     Wire.write(0x07);
     Wire.write(0x10);  // Set Square Wave to 1 Hz
     Wire.endTransmission();
-  }
-
-  if (flag) {
-    printRTCtime();
-    flag = LOW;
   }
 }
 
