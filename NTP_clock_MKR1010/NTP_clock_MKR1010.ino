@@ -1,3 +1,5 @@
+
+
 /*
   Simple RTC Alarm for Arduino Zero and MKR1000
 
@@ -17,9 +19,11 @@
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <RTCZero.h>
+#include <U8g2lib.h>
+#include <U8x8lib.h>
 
 byte mac[] = {0xA8, 0x61, 0x0A, 0xAE, 0x5A, 0x4B};
-IPAddress ip(192, 168, 2, 187);
+IPAddress ip(192, 168, 2, 188);
 unsigned int localPort = 8888;       // local port to listen for UDP packets
 const char timeServer[] = "time.nist.gov"; // time.nist.gov NTP server
 const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
@@ -37,17 +41,17 @@ uint8_t counter = 0;
 uint8_t sendInterval = 10;
 uint8_t checkInterval = 1;
 
-const byte ledPin = 20;
+const byte ledPin = 6;
 
-//* Change these values to set the current initial time */
-const byte seconds = 0;
-const byte minutes = 0;
-const byte hours = 16;
-
-//* Change these values to set the current initial date */
-const byte day = 25;
-const byte month = 9;
-const byte year = 15;
+////* Change these values to set the current initial time */
+//const byte seconds = 0;
+//const byte minutes = 0;
+//const byte hours = 16;
+//
+////* Change these values to set the current initial date */
+//const byte day = 25;
+//const byte month = 9;
+//const byte year = 15;
 
 void setup()
 {
@@ -59,8 +63,8 @@ void setup()
 
   rtc.begin(); // initialize RTC 24H format
 
-  rtc.setTime(hours, minutes, seconds);
-  rtc.setDate(day, month, year);
+//  rtc.setTime(hours, minutes, seconds);
+//  rtc.setDate(day, month, year);
 
   rtc.enableAlarm(rtc.MATCH_SS);
  
@@ -99,6 +103,7 @@ void loop()
     const unsigned long seventyYears = 2208988800UL;
     // subtract seventy years:
     unsigned long epoch = secsSince1900 - seventyYears;
+    Serial.println(epoch);
     rtc.setEpoch(epoch);
 }}
 
@@ -131,7 +136,7 @@ void tick(void)
      //SerialUSB.println(rtc.getEpoch());
      flag = HIGH;
      counter++;
-     PORT->Group[PORTA].OUTTGL.reg = PORT_PA20;                           // Toggle digital pin D13
+     digitalWrite(ledPin, !digitalRead(ledPin));                           // Toggle digital pin D6
      RTC->MODE2.INTFLAG.reg = RTC_MODE2_INTFLAG_ALARM0;                   // Reset interrupt flag     
      RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND = (RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND + 1) % 60;   // Increment the ALARM0 compare register
      while (RTC->MODE2.STATUS.bit.SYNCBUSY);                              // Wait for synchronization
