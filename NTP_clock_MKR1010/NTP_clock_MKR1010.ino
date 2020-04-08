@@ -37,16 +37,17 @@ uint8_t counter = 0;
 uint8_t sendInterval = 10;
 uint8_t checkInterval = 1;
 
+const byte ledPin = 20;
 
-///* Change these values to set the current initial time */
-//const byte seconds = 0;
-//const byte minutes = 0;
-//const byte hours = 16;
-//
-///* Change these values to set the current initial date */
-//const byte day = 25;
-//const byte month = 9;
-//const byte year = 15;
+//* Change these values to set the current initial time */
+const byte seconds = 0;
+const byte minutes = 0;
+const byte hours = 16;
+
+//* Change these values to set the current initial date */
+const byte day = 25;
+const byte month = 9;
+const byte year = 15;
 
 void setup()
 {
@@ -58,19 +59,30 @@ void setup()
 
   rtc.begin(); // initialize RTC 24H format
 
-  //rtc.setTime(hours, minutes, seconds);
-  //rtc.setDate(day, month, year);
+  rtc.setTime(hours, minutes, seconds);
+  rtc.setDate(day, month, year);
 
-  rtc.setAlarmSeconds(10);
   rtc.enableAlarm(rtc.MATCH_SS);
  
-  rtc.attachInterrupt(alarmMatch);
+  rtc.attachInterrupt(tick);
 }
 
 void loop()
 {
-  delay(1000);
-  sendNTPpacket(timeServer); // send an NTP packet to a time server
+  if (flag == HIGH) {
+    printRTCtime();
+    flag = LOW;
+  } 
+  
+  if (startup == HIGH) {
+    sendNTPpacket(timeServer); // send an NTP packet to a time server
+    startup = LOW;
+  }
+
+  if (counter >= sendInterval) {
+    sendNTPpacket(timeServer); // send an NTP packet to a time server
+    counter = 0;
+  }
   
   if (Udp.parsePacket()) {
     // We've received a packet, read the data from it
@@ -103,7 +115,6 @@ void sendNTPpacket(const char * address) { // send an NTP request to the time se
   packetBuffer[13]  = 0x4E;
   packetBuffer[14]  = 49;
   packetBuffer[15]  = 52;
-
   // all NTP fields have been given values, now
   // you can send a packet requesting a timestamp:
   Udp.beginPacket(address, 123); // NTP requests are to port 123
@@ -111,7 +122,34 @@ void sendNTPpacket(const char * address) { // send an NTP request to the time se
   Udp.endPacket();
 }
 
-void alarmMatch()
+void tick(void)
 {
-  Serial.println("Alarm Match!");
+  if (RTC->MODE2.INTFLAG.bit.ALARM0 && RTC->MODE2.INTENSET.bit.ALARM0)    // Check for ALARM0 interrupt
+  { 
+     //SerialUSB.print(F("RTC Handler  "));
+     //SerialUSB.println(RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND);
+     //SerialUSB.println(rtc.getEpoch());
+     flag = HIGH;
+     counter++;
+     PORT->Group[PORTA].OUTTGL.reg = PORT_PA20;                           // Toggle digital pin D13
+     RTC->MODE2.INTFLAG.reg = RTC_MODE2_INTFLAG_ALARM0;                   // Reset interrupt flag     
+     RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND = (RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND + 1) % 60;   // Increment the ALARM0 compare register
+     while (RTC->MODE2.STATUS.bit.SYNCBUSY);                              // Wait for synchronization
+  }
+}
+
+void printRTCtime() {
+  print2digits(rtc.getHours());
+  Serial.print(':');
+  print2digits(rtc.getMinutes());
+  Serial.print(':');
+  print2digits(rtc.getSeconds());
+  Serial.println();
+}
+
+void print2digits(int number) {
+  if (number < 10) {
+    Serial.print("0");
+  }
+  Serial.print(number);
 }
