@@ -56,7 +56,6 @@ void setup() {
   }
 
   Ethernet.init(10);  // CS pin
-  //Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
   Udp.begin(localPort);
 
