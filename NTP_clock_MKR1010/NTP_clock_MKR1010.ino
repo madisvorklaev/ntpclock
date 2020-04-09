@@ -1,19 +1,4 @@
-
-
-/*
-  Simple RTC Alarm for Arduino Zero and MKR1000
-
-  Demonstrates how to set an RTC alarm for the Arduino Zero and MKR1000
-
-  This example code is in the public domain
-
-  http://arduino.cc/en/Tutorial/SimpleRTCAlarm
-
-  created by Arturo Guadalupi <a.guadalupi@arduino.cc>
-  25 Sept 2015
- 
-  modified
-  21 Oct 2015
+/* Used code from http://arduino.cc/en/Tutorial/SimpleRTCAlarm and https://forum.arduino.cc/index.php?topic=553612.0
 */
 #include <SPI.h>
 #include <Ethernet.h>
@@ -31,7 +16,6 @@ byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packe
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 
-/* Create an rtc object */
 RTCZero rtc;
 
 volatile byte flag = LOW;
@@ -43,40 +27,30 @@ uint8_t checkInterval = 1;
 
 const byte ledPin = 6;
 
-////* Change these values to set the current initial time */
-//const byte seconds = 0;
-//const byte minutes = 0;
-//const byte hours = 16;
-//
-////* Change these values to set the current initial date */
-//const byte day = 25;
-//const byte month = 9;
-//const byte year = 15;
-
 void setup()
 {
   Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
+  if (Ethernet.linkStatus() != LinkON) {    
+    while(Ethernet.linkStatus() != LinkON) {
+      Serial.println("Link not connected!");
+      delay(500);}
+  }
   Udp.begin(localPort);
   
   Serial.begin(9600);
 
   rtc.begin(); // initialize RTC 24H format
 
-//  rtc.setTime(hours, minutes, seconds);
-//  rtc.setDate(day, month, year);
-
-  rtc.enableAlarm(rtc.MATCH_SS);
- 
-  rtc.attachInterrupt(tick);
+  rtc.enableAlarm(rtc.MATCH_SS); //set interrupt mask to match seconds
+  rtc.attachInterrupt(tick); //ISR
 }
 
-void loop()
-{
-  if (flag == HIGH) {
-    printRTCtime();
-    flag = LOW;
-  } 
+void loop(){
+//  if (flag == HIGH) {
+//    printRTCtime();
+//    flag = LOW;
+//  } 
   
   if (startup == HIGH) {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
@@ -89,9 +63,8 @@ void loop()
   }
   
   if (Udp.parsePacket()) {
-    // We've received a packet, read the data from it
     Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
-    // the timestamp starts at byte 40 of the received packet and is four b ytes,
+    // the timestamp starts at byte 40 of the received packet and is four bytes,
     // or two words, long. First, extract the two words:
     unsigned long highWord = word(packetBuffer[40], packetBuffer[41]);
     unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
@@ -134,7 +107,8 @@ void tick(void)
      //SerialUSB.print(F("RTC Handler  "));
      //SerialUSB.println(RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND);
      //SerialUSB.println(rtc.getEpoch());
-     flag = HIGH;
+     //flag = HIGH;
+     printRTCtime();
      counter++;
      digitalWrite(ledPin, !digitalRead(ledPin));                           // Toggle digital pin D6
      RTC->MODE2.INTFLAG.reg = RTC_MODE2_INTFLAG_ALARM0;                   // Reset interrupt flag     
@@ -145,9 +119,9 @@ void tick(void)
 
 void printRTCtime() {
   print2digits(rtc.getHours());
-  Serial.print(':');
+  Serial.print(":");
   print2digits(rtc.getMinutes());
-  Serial.print(':');
+  Serial.print(":");
   print2digits(rtc.getSeconds());
   Serial.println();
 }
