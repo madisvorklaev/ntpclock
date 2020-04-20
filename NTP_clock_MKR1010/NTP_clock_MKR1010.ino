@@ -7,6 +7,8 @@
 #include <U8g2lib.h>
 #include <U8x8lib.h>
 
+U8G2_T6963_256X64_F_8080 u8g2(U8G2_R0, 0, 1, 2, 3, 4, 11, 12, 7, /*enable/wr=*/ 17, /*cs/ce=*/ 14, /*dc=*/ 15, /*reset=*/ 16); // Connect RD with +5V, FS0 and FS1 with GND
+
 byte mac[] = {0xA8, 0x61, 0x0A, 0xAE, 0x5A, 0x4B};
 IPAddress ip(192, 168, 2, 188);
 unsigned int localPort = 8888;       // local port to listen for UDP packets
@@ -29,13 +31,17 @@ const byte ledPin = 6;
 
 void setup()
 {
+  pinMode(18, OUTPUT);
+  digitalWrite(18, HIGH);
+  u8g2.begin();
+  
   Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
-  if (Ethernet.linkStatus() != LinkON) {    
-    while(Ethernet.linkStatus() != LinkON) {
-      Serial.println("Link not connected!");
-      delay(500);}
-  }
+//  if (Ethernet.linkStatus() != LinkON) {    
+//    while(Ethernet.linkStatus() != LinkON) {
+//      Serial.println("Link not connected!");
+//      delay(500);}
+//  }
   Udp.begin(localPort);
   
   Serial.begin(9600);
@@ -44,9 +50,12 @@ void setup()
 
   rtc.enableAlarm(rtc.MATCH_SS); //set interrupt mask to match seconds
   rtc.attachInterrupt(tick); //ISR
+
+
 }
 
 void loop(){
+ 
 //  if (flag == HIGH) {
 //    printRTCtime();
 //    flag = LOW;
@@ -118,17 +127,37 @@ void tick(void)
 }
 
 void printRTCtime() {
+  u8g2.clearBuffer();          // clear the internal memory
+  u8g2.setFont(u8g2_font_fub42_tf); // choose a suitable font
+//  u8g2.print("Hello world");
+
+//  u8g2.drawUTF8(0,30,const char(rtc.getHours()));  // write something to the internal memory
+//  u8g2.drawUTF8(2,30,const char(rtc.getMinutes()));
+//  u8g2.drawUTF8(4,30,const char(rtc.getSeconds()));
+//  u8g2.sendBuffer();          // transfer internal memory to the display
+  u8g2.setCursor(0, 64);
   print2digits(rtc.getHours());
-  Serial.print(":");
+  
+
+  u8g2.print(":");
+
   print2digits(rtc.getMinutes());
-  Serial.print(":");
+
+  u8g2.print(":");
+  
   print2digits(rtc.getSeconds());
-  Serial.println();
+  u8g2.sendBuffer();
 }
 
 void print2digits(int number) {
   if (number < 10) {
-    Serial.print("0");
+    u8g2.print("0");
   }
-  Serial.print(number);
+  u8g2.print(number);
+ 
 }
+
+
+ 
+  
+  
