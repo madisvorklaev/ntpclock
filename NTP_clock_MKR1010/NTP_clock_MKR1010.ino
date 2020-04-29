@@ -15,8 +15,9 @@ unsigned int localPort = 8888;       // local port to listen for UDP packets
 const char timeServer[] = "time.nist.gov"; // time.nist.gov NTP server
 const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
 byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
-// A UDP instance to let us send and receive packets over UDP
-EthernetUDP Udp;
+EthernetUDP Udp; // A UDP instance to let us send and receive packets over UDP
+
+String message;
 
 RTCZero rtc;
 
@@ -24,7 +25,7 @@ volatile byte flag = LOW;
 volatile byte startup = HIGH;
 
 uint8_t counter = 0;
-uint8_t sendInterval = 10;
+uint8_t sendInterval = 61;
 uint8_t checkInterval = 1;
 
 const byte ledPin = 6;
@@ -37,29 +38,30 @@ void setup()
   
   Ethernet.init(5);   // MKR ETH shield
   Ethernet.begin(mac, ip);
-//  if (Ethernet.linkStatus() != LinkON) {    
-//    while(Ethernet.linkStatus() != LinkON) {
-//      Serial.println("Link not connected!");
-//      delay(500);}
-//  }
   Udp.begin(localPort);
   
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   rtc.begin(); // initialize RTC 24H format
-
   rtc.enableAlarm(rtc.MATCH_SS); //set interrupt mask to match seconds
   rtc.attachInterrupt(tick); //ISR
 
-
+  u8g2.setFont(u8g2_font_t0_11_t_all);
+  u8g2.setCursor(10, 10);
+  u8g2.print("Initializing...");
+  u8g2.setCursor(10, 20);
+  u8g2.print("IP: ");
+  u8g2.print(Ethernet.localIP());
+  u8g2.sendBuffer();
 }
 
 void loop(){
- 
-//  if (flag == HIGH) {
-//    printRTCtime();
-//    flag = LOW;
-//  } 
+  if(Ethernet.linkStatus() != LinkON) {   
+    message = "ETHERNET DISCONNECTED!";
+  }
+  else {
+    message = "";
+  }
   
   if (startup == HIGH) {
     sendNTPpacket(timeServer); // send an NTP packet to a time server
@@ -67,11 +69,14 @@ void loop(){
   }
 
   if (counter >= sendInterval) {
+    counter = sendInterval -1; // if NTP response hasn't arrived, send a new one in one second
     sendNTPpacket(timeServer); // send an NTP packet to a time server
-    counter = 0;
-  }
+    Serial.println("NTP packet sent");
+      }
   
   if (Udp.parsePacket()) {
+    counter = 0;
+    Serial.println("Packet recieved");
     Udp.read(packetBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
     // the timestamp starts at byte 40 of the received packet and is four bytes,
     // or two words, long. First, extract the two words:
@@ -87,6 +92,7 @@ void loop(){
     unsigned long epoch = secsSince1900 - seventyYears;
     Serial.println(epoch);
     rtc.setEpoch(epoch);
+    Serial.println("Time set on RTC");
 }}
 
 void sendNTPpacket(const char * address) { // send an NTP request to the time server at the given address
@@ -97,7 +103,7 @@ void sendNTPpacket(const char * address) { // send an NTP request to the time se
   packetBuffer[1] = 0;     // Stratum, or type of clock
   packetBuffer[2] = 6;     // Polling Interval
   packetBuffer[3] = 0xEC;  // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
+  // 8 bytes of zero for Root delay & Root Dispersion
   packetBuffer[12]  = 49;
   packetBuffer[13]  = 0x4E;
   packetBuffer[14]  = 49;
@@ -113,12 +119,11 @@ void tick(void)
 {
   if (RTC->MODE2.INTFLAG.bit.ALARM0 && RTC->MODE2.INTENSET.bit.ALARM0)    // Check for ALARM0 interrupt
   { 
-     //SerialUSB.print(F("RTC Handler  "));
-     //SerialUSB.println(RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND);
-     //SerialUSB.println(rtc.getEpoch());
-     //flag = HIGH;
+     Serial.println("TICK");
      printRTCtime();
      counter++;
+     Serial.print("Counter value: ");
+     Serial.println(counter);
      digitalWrite(ledPin, !digitalRead(ledPin));                           // Toggle digital pin D6
      RTC->MODE2.INTFLAG.reg = RTC_MODE2_INTFLAG_ALARM0;                   // Reset interrupt flag     
      RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND = (RTC->MODE2.Mode2Alarm[0].ALARM.bit.SECOND + 1) % 60;   // Increment the ALARM0 compare register
@@ -129,23 +134,16 @@ void tick(void)
 void printRTCtime() {
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_fub42_tf); // choose a suitable font
-//  u8g2.print("Hello world");
-
-//  u8g2.drawUTF8(0,30,const char(rtc.getHours()));  // write something to the internal memory
-//  u8g2.drawUTF8(2,30,const char(rtc.getMinutes()));
-//  u8g2.drawUTF8(4,30,const char(rtc.getSeconds()));
-//  u8g2.sendBuffer();          // transfer internal memory to the display
-  u8g2.setCursor(0, 64);
+  u8g2.setCursor(0, 55);
+  Serial.println("New second on display");
   print2digits(rtc.getHours());
-  
-
   u8g2.print(":");
-
   print2digits(rtc.getMinutes());
-
-  u8g2.print(":");
-  
+  u8g2.print(":");  
   print2digits(rtc.getSeconds());
+  u8g2.setFont(u8g2_font_t0_11_t_all);
+  u8g2.setCursor(100, 10);
+  u8g2.print(message);
   u8g2.sendBuffer();
 }
 
@@ -153,11 +151,13 @@ void print2digits(int number) {
   if (number < 10) {
     u8g2.print("0");
   }
-  u8g2.print(number);
- 
+  u8g2.print(number); 
 }
 
-
- 
-  
-  
+//void printHandler(){
+//  u8g2.clearBuffer();
+//  u8g2.setFont(u8g2_font_t0_11_t_all);
+//  u8g2.setCursor(100, 10);
+//  u8g2.print(message);
+//  u8g2.sendBuffer();
+//}
